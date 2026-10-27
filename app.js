@@ -15,6 +15,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
+// TELEGRAM BOT SOZLAMALARI
+const TELEGRAM_BOT_TOKEN = "8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ";
+const TELEGRAM_CHANNEL_ID = "@matbuot_2026";
+
 const defaultUsers = [
     { username: 'admin', password: 'admin123', name: 'Bosh Admin', role: 'admin', dept: 'Matbuot Xizmati Markazi', hashtag: '#VetMatbuot', avatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' },
     { username: 'anatomiya', password: 'pass1', name: 'Prof. Karimov T.', role: 'user', dept: 'Hayvonlar anatomiyasi, gistologiyasi va patologik anatomiya kafedrasi', hashtag: '#VetAnatomiya', avatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' },
@@ -28,7 +32,7 @@ let usersDB = [];
 let pendingPosts = [];
 let publishedPosts = [];
 let rejectedPosts = [];
-let socialLinks = { telegram: 'https://t.me/samvett', instagram: 'https://instagram.com/samvet_uz', facebook: 'https://facebook.com/samvet' };
+let socialLinks = { telegram: 'https://t.me/matbuot_2026', instagram: 'https://instagram.com/samvet_uz', facebook: 'https://facebook.com/samvet' };
 
 let currentUser = JSON.parse(localStorage.getItem('currentUser')) || null;
 let currentReviewPost = null;
@@ -314,10 +318,13 @@ window.openReviewModal = function(id) {
     document.getElementById('reject-reason-input').value = "";
     document.getElementById('ai-review-modal').classList.remove('hidden');
 
-    document.getElementById('approve-publish-btn').onclick = () => {
+    document.getElementById('approve-publish-btn').onclick = async () => {
         const finalText = document.getElementById('modal-final-text').value;
         const now = new Date();
         const timeStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+
+        // Telegramga post yuborish
+        await sendPostToTelegramChannel(finalText, currentReviewPost.images || []);
 
         publishedPosts.unshift({
             ...currentReviewPost,
@@ -334,6 +341,54 @@ window.openReviewModal = function(id) {
         closeReviewModal();
         switchTab('published-posts');
     };
+}
+
+// TELEGRAM BOT BILAN INTEGRATSIYA (KANALGA POST YUBORISH)
+async function sendPostToTelegramChannel(text, images) {
+    try {
+        if (!images || images.length === 0) {
+            // Faqat matnli post yuborish
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: TELEGRAM_CHANNEL_ID,
+                    text: text
+                })
+            });
+        } else if (images.length === 1) {
+            // 1 ta rasm bilan yuborish
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: TELEGRAM_CHANNEL_ID,
+                    photo: images[0],
+                    caption: text
+                })
+            });
+        } else {
+            // Bir nechta rasmni ALBOM (MediaGroup) qilib yuborish
+            const mediaGroup = images.map((img, idx) => ({
+                type: 'photo',
+                media: img,
+                caption: idx === 0 ? text : ''
+            }));
+
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMediaGroup`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: TELEGRAM_CHANNEL_ID,
+                    media: mediaGroup
+                })
+            });
+        }
+        alert("E'lon portalga saqlandi va Telegram kanalga muvaffaqiyatli chop etildi!");
+    } catch (err) {
+        console.error("Telegramga yuborishda xatolik:", err);
+        alert("Portalga saqlandi, lekin Telegram kanalga jo'natishda xatolik yuz berdi. Bot kanalda Admin ekanligini tekshiring.");
+    }
 }
 
 // Moderatsiya oynasidagi rasmlarni chiqarish va o'chirish tugmasi
@@ -431,12 +486,12 @@ function renderPublishedPosts() {
     });
 }
 
-// Admin tomonidan kanalga chiqqan postni butunlay o'chirish
+// Admin tomonidan kanalga chiqqan postni o'chirish
 window.deletePublishedPost = function(id) {
-    if (confirm("Haqiqatan ham ushbu e'lonni kanalga chiqqanlar ro'yxatidan o'chirmoqchimisiz?")) {
+    if (confirm("Haqiqatan ham ushbu e'lonni portal arxividan o'chirmoqchimisiz?")) {
         publishedPosts = publishedPosts.filter(p => p.id !== id);
         set(ref(db, 'publishedPosts'), publishedPosts);
-        alert("E'lon muvaffaqiyatli o'chirildi!");
+        alert("E'lon o'chirildi!");
     }
 }
 
