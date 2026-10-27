@@ -336,7 +336,7 @@ window.openReviewModal = function(id) {
     };
 }
 
-// Moderatsiya oynasidagi rasmlarni chiqarish va o'chirish tugmasi bilan ta'minlash
+// Moderatsiya oynasidagi rasmlarni chiqarish va o'chirish tugmasi
 function renderReviewModalImages() {
     const galleryContainer = document.getElementById('modal-images-gallery');
     if (!galleryContainer) return;
@@ -358,7 +358,7 @@ function renderReviewModalImages() {
     });
 }
 
-// Moderatsiya oynasida rasmni massivdan o'chirib, ekranni yangilash
+// Moderatsiya oynasidagi keraksiz rasmni o'chirish
 window.removePostImage = function(index) {
     if (currentReviewPost && currentReviewPost.images) {
         currentReviewPost.images.splice(index, 1);
@@ -404,7 +404,15 @@ function renderPublishedPosts() {
             reactionsHtml += `<button onclick="reactPost(${p.id}, '${emoji}')" class="px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition ${isVoted ? 'bg-blue-600 text-white' : 'bg-slate-950 text-slate-300 hover:bg-slate-800'}">${emoji} <span>${count}</span></button>`;
         }
 
-        let adminEditBtn = currentUser.role === 'admin' ? `<button onclick="openAdminEdit(${p.id})" class="text-xs text-purple-400 hover:underline flex items-center gap-1"><i class="fa-solid fa-pen-to-square"></i> Tahrirlash</button>` : '';
+        let adminActionsHtml = '';
+        if (currentUser.role === 'admin') {
+            adminActionsHtml = `
+                <div class="flex items-center gap-2">
+                    <button onclick="openAdminEdit(${p.id})" class="text-xs text-purple-400 hover:underline flex items-center gap-1"><i class="fa-solid fa-pen-to-square"></i> Tahrirlash</button>
+                    <span class="text-slate-700">|</span>
+                    <button onclick="deletePublishedPost(${p.id})" class="text-xs text-rose-400 hover:underline flex items-center gap-1"><i class="fa-solid fa-trash"></i> O'chirish</button>
+                </div>`;
+        }
 
         container.innerHTML += `
             <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-4 shadow-xl">
@@ -412,7 +420,7 @@ function renderPublishedPosts() {
                     <span class="px-3 py-1 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">${p.dept}</span>
                     <div class="flex items-center gap-3">
                         <span class="text-[11px] text-slate-500"><i class="fa-regular fa-clock mr-1"></i>${p.publishedAt}</span>
-                        ${adminEditBtn}
+                        ${adminActionsHtml}
                     </div>
                 </div>
 
@@ -421,6 +429,15 @@ function renderPublishedPosts() {
                 <div class="flex flex-wrap gap-2 pt-2 border-t border-slate-800/80">${reactionsHtml}</div>
             </div>`;
     });
+}
+
+// Admin tomonidan kanalga chiqqan postni butunlay o'chirish
+window.deletePublishedPost = function(id) {
+    if (confirm("Haqiqatan ham ushbu e'lonni kanalga chiqqanlar ro'yxatidan o'chirmoqchimisiz?")) {
+        publishedPosts = publishedPosts.filter(p => p.id !== id);
+        set(ref(db, 'publishedPosts'), publishedPosts);
+        alert("E'lon muvaffaqiyatli o'chirildi!");
+    }
 }
 
 function renderMyPosts() {
@@ -498,7 +515,6 @@ window.closeAdminEditModal = function() { document.getElementById('admin-edit-mo
 window.openLightbox = function(imgSrc) {
     document.getElementById('lightbox-img').src = imgSrc;
     document.getElementById('lightbox-download-btn').href = imgSrc;
-    document.getElementById('lightbox-modal').classList.add('hidden'); // Fix toggle
     document.getElementById('lightbox-modal').classList.remove('hidden');
 }
 window.closeLightbox = function() { document.getElementById('lightbox-modal').classList.add('hidden'); }
