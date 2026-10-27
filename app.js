@@ -15,11 +15,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// TELEGRAM VA IMGBB SOZLAMALARI
-const TELEGRAM_BOT_TOKEN = "8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ";
-const TELEGRAM_CHANNEL_ID = "@matbuot_2026";
-const IMGBB_API_KEY = "6d207e02194a847aa98d2a6326075b9f"; 
-
 const defaultUsers = [
     { username: 'admin', password: 'admin123', name: 'Bosh Admin', role: 'admin', dept: 'Matbuot Xizmati Markazi', hashtag: '#VetMatbuot', avatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' },
     { username: 'anatomiya', password: 'pass1', name: 'Prof. Karimov T.', role: 'user', dept: 'Hayvonlar anatomiyasi, gistologiyasi va patologik anatomiya kafedrasi', hashtag: '#VetAnatomiya', avatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' },
@@ -33,7 +28,7 @@ let usersDB = [];
 let pendingPosts = [];
 let publishedPosts = [];
 let rejectedPosts = [];
-let socialLinks = { telegram: 'https://t.me/matbuot_2026', instagram: 'https://instagram.com/samvet_uz', facebook: 'https://facebook.com/samvet' };
+let socialLinks = { telegram: 'https://t.me/samvett', instagram: 'https://instagram.com/samvet_uz', facebook: 'https://facebook.com/samvet' };
 
 let currentUser = JSON.parse(localStorage.getItem('currentUser')) || null;
 let currentReviewPost = null;
@@ -240,51 +235,20 @@ function handleProfileUpdate(e) {
     }
 }
 
-// Xavfsiz va to'liq tasdiqlangan rasm yuklash funksiyasi
-async function handleImageUpload(e) {
-    const files = Array.from(e.target.files || []);
-    const container = document.getElementById('image-preview-container');
+function handleImageUpload(e) {
+    const files = Array.from(e.target.files);
+    if (files.length > 10) { alert("Maksimum 10 ta rasm!"); return; }
     currentUploadedImages = [];
-    if (container) container.innerHTML = "";
-
-    if (files.length > 10) {
-        e.target.value = "";
-        alert("Maksimum 10 ta rasm tanlash mumkin!");
-        return;
-    }
-
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
-    for (const file of files) {
-        if (!allowedTypes.includes(file.type)) {
-            e.target.value = "";
-            alert("Faqat JPG, PNG yoki WEBP formatidagi rasmlarni tanlang.");
-            return;
-        }
-        if (file.size > 8 * 1024 * 1024) {
-            e.target.value = "";
-            alert(`"${file.name}" rasmi 8 MB dan katta. Kichikroq rasm tanlang.`);
-            return;
-        }
-    }
-
-    try {
-        currentUploadedImages = await Promise.all(files.map(file => new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = () => reject(new Error(`"${file.name}" rasmini o'qib bo'lmadi.`));
-            reader.readAsDataURL(file);
-        })));
-
-        if (container) {
-            container.innerHTML = currentUploadedImages.map(img =>
-                `<img src="${img}" class="w-full h-20 object-cover rounded-xl border border-slate-700">`
-            ).join("");
-        }
-    } catch (error) {
-        currentUploadedImages = [];
-        if (container) container.innerHTML = "";
-        alert(error.message || "Rasmlarni o'qishda xatolik yuz berdi.");
-    }
+    const container = document.getElementById('image-preview-container');
+    container.innerHTML = "";
+    files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            currentUploadedImages.push(ev.target.result);
+            container.innerHTML += `<img src="${ev.target.result}" class="w-full h-20 object-cover rounded-xl border border-slate-700">`;
+        };
+        reader.readAsDataURL(file);
+    });
 }
 
 function handlePostSubmit(e) {
@@ -350,25 +314,10 @@ window.openReviewModal = function(id) {
     document.getElementById('reject-reason-input').value = "";
     document.getElementById('ai-review-modal').classList.remove('hidden');
 
-    document.getElementById('approve-publish-btn').onclick = async () => {
+    document.getElementById('approve-publish-btn').onclick = () => {
         const finalText = document.getElementById('modal-final-text').value;
         const now = new Date();
         const timeStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
-
-        const approveButton = document.getElementById('approve-publish-btn');
-        approveButton.disabled = true;
-        const originalButtonText = approveButton.textContent;
-        approveButton.textContent = "Yuborilmoqda...";
-
-        try {
-            await sendPostToTelegramChannel(finalText, currentReviewPost.images || []);
-        } catch (error) {
-            console.error("Telegramga yuborishda xatolik:", error);
-            alert("Telegramga yuborilmadi: " + (error.message || "Noma'lum xatolik") + "\n\nBot kanalga administrator qilib qo'shilganini, token va ImgBB API kalitini tekshiring.");
-            approveButton.disabled = false;
-            approveButton.textContent = originalButtonText;
-            return;
-        }
 
         publishedPosts.unshift({
             ...currentReviewPost,
@@ -382,142 +331,12 @@ window.openReviewModal = function(id) {
         set(ref(db, 'pendingPosts'), pendingPosts);
         set(ref(db, 'publishedPosts'), publishedPosts);
         
-        approveButton.disabled = false;
-        approveButton.textContent = originalButtonText;
         closeReviewModal();
         switchTab('published-posts');
     };
 }
 
-// ImgBB ga rasm yuklash
-async function uploadImageToImgBB(imageData, index) {
-    if (!IMGBB_API_KEY || IMGBB_API_KEY === "PASTE_IMGBB_API_KEY_HERE") {
-        throw new Error("ImgBB API kaliti kiritilmagan.");
-    }
-
-    if (typeof imageData === "string" && /^https?:\/\//i.test(imageData)) {
-        return imageData;
-    }
-
-    if (typeof imageData !== "string" || !imageData.includes(",")) {
-        throw new Error(`${index + 1}-rasm formati noto'g'ri.`);
-    }
-
-    const base64Data = imageData.split(",")[1];
-    if (!base64Data) throw new Error(`${index + 1}-rasm ma'lumoti topilmadi.`);
-
-    const formData = new FormData();
-    formData.append("image", base64Data);
-
-    const response = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(IMGBB_API_KEY)}`, {
-        method: "POST",
-        body: formData
-    });
-
-    let result;
-    try {
-        result = await response.json();
-    } catch {
-        throw new Error(`ImgBB ${index + 1}-rasm uchun tushunarsiz javob qaytardi.`);
-    }
-
-    if (!response.ok || !result || !result.success || !result.data || !result.data.url) {
-        throw new Error(`ImgBB ${index + 1}-rasmni yuklay olmadi: ${result?.error?.message || response.statusText || "noma'lum xato"}`);
-    }
-    return result.data.url;
-}
-
-// Telegram API so'rov yuborish
-async function telegramApi(method, payload) {
-    if (!TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN === "PASTE_NEW_BOT_TOKEN_HERE") {
-        throw new Error("Telegram bot tokeni kiritilmagan.");
-    }
-
-    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    });
-
-    let result;
-    try {
-        result = await response.json();
-    } catch {
-        throw new Error("Telegram serveridan tushunarsiz javob keldi.");
-    }
-
-    if (!response.ok || !result.ok) {
-        throw new Error(result?.description || `Telegram API xatosi (${response.status}).`);
-    }
-    return result;
-}
-
-// Telegram kanalga xabar va rasmlarni to'liq yuborish
-async function sendPostToTelegramChannel(text, images = []) {
-    const cleanText = (text || "").trim();
-    const postImages = Array.isArray(images) ? images.filter(Boolean) : [];
-
-    if (!cleanText && postImages.length === 0) {
-        throw new Error("Yuborish uchun matn yoki rasm mavjud emas.");
-    }
-    if (!TELEGRAM_CHANNEL_ID) {
-        throw new Error("TELEGRAM_CHANNEL_ID sozlamasi bo'sh.");
-    }
-
-    const caption = cleanText.length <= 1024 ? cleanText : cleanText.slice(0, 1010) + "…";
-
-    if (postImages.length === 0) {
-        await telegramApi("sendMessage", {
-            chat_id: TELEGRAM_CHANNEL_ID,
-            text: cleanText.slice(0, 4096)
-        });
-        return true;
-    }
-
-    const imageUrls = await Promise.all(postImages.map((img, index) => uploadImageToImgBB(img, index)));
-
-    if (imageUrls.length === 1) {
-        await telegramApi("sendPhoto", {
-            chat_id: TELEGRAM_CHANNEL_ID,
-            photo: imageUrls[0],
-            caption
-        });
-    } else {
-        for (let start = 0; start < imageUrls.length; start += 10) {
-            const chunk = imageUrls.slice(start, start + 10);
-            if (chunk.length === 1) {
-                await telegramApi("sendPhoto", {
-                    chat_id: TELEGRAM_CHANNEL_ID,
-                    photo: chunk[0],
-                    caption: start === 0 ? caption : ""
-                });
-            } else {
-                const media = chunk.map((url, index) => ({
-                    type: "photo",
-                    media: url,
-                    ...(start === 0 && index === 0 ? { caption } : {})
-                }));
-                await telegramApi("sendMediaGroup", {
-                    chat_id: TELEGRAM_CHANNEL_ID,
-                    media
-                });
-            }
-        }
-    }
-
-    if (cleanText.length > 1024) {
-        for (let i = 0; i < cleanText.length; i += 4000) {
-            await telegramApi("sendMessage", {
-                chat_id: TELEGRAM_CHANNEL_ID,
-                text: cleanText.slice(i, i + 4000)
-            });
-        }
-    }
-
-    return true;
-}
-
-// Moderatsiya oynasidagi rasmlarni chiqarish va o'chirish
+// Moderatsiya oynasidagi rasmlarni chiqarish va o'chirish tugmasi
 function renderReviewModalImages() {
     const galleryContainer = document.getElementById('modal-images-gallery');
     if (!galleryContainer) return;
@@ -539,6 +358,7 @@ function renderReviewModalImages() {
     });
 }
 
+// Moderatsiya oynasidagi keraksiz rasmni o'chirish
 window.removePostImage = function(index) {
     if (currentReviewPost && currentReviewPost.images) {
         currentReviewPost.images.splice(index, 1);
@@ -611,11 +431,12 @@ function renderPublishedPosts() {
     });
 }
 
+// Admin tomonidan kanalga chiqqan postni butunlay o'chirish
 window.deletePublishedPost = function(id) {
     if (confirm("Haqiqatan ham ushbu e'lonni kanalga chiqqanlar ro'yxatidan o'chirmoqchimisiz?")) {
         publishedPosts = publishedPosts.filter(p => p.id !== id);
         set(ref(db, 'publishedPosts'), publishedPosts);
-        alert("E'lon o'chirildi!");
+        alert("E'lon muvaffaqiyatli o'chirildi!");
     }
 }
 
