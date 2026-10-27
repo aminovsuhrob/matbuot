@@ -18,7 +18,6 @@ const db = getDatabase(app);
 // TELEGRAM BOT SOZLAMALARI
 const TELEGRAM_BOT_TOKEN = "8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ";
 const TELEGRAM_CHANNEL_ID = "@matbuot_2026";
-// Bepul ImgBB kaliti (rasmlarni internetga vaqtinchalik yuklab Telegramga berish uchun)
 const IMGBB_API_KEY = "6d207e02194a847aa98d2a6326075b9f"; 
 
 const defaultUsers = [
@@ -325,7 +324,7 @@ window.openReviewModal = function(id) {
         const now = new Date();
         const timeStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
 
-        // Telegram kanalga rasmlar va matnni yuborish
+        // Telegram kanalga xavfsiz tarzda yuborish (xatolik bo'lsa ham matn borsa uchun)
         await sendPostToTelegramChannel(finalText, currentReviewPost.images || []);
 
         publishedPosts.unshift({
@@ -345,78 +344,73 @@ window.openReviewModal = function(id) {
     };
 }
 
-// Rasmlarni ImgBB orqali internetga yuklab, keyin Telegramga yuborish
+// Telegramga xavfsiz yuborish funksiyasi (rasm yuklanmasa ham matnni yuboradi)
 async function sendPostToTelegramChannel(text, images) {
+    let uploadedImageUrls = [];
+
+    // Rasmlarni yuklab ko'rishga harakat qilamiz
+    if (images && images.length > 0) {
+        for (let imgBase64 of images) {
+            try {
+                let base64Data = imgBase64.split(',')[1];
+                let formData = new FormData();
+                formData.append('image', base64Data);
+
+                let res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                let data = await res.json();
+                if (data && data.success) {
+                    uploadedImageUrls.push(data.data.url);
+                }
+            } catch (e) {
+                console.warn("Rasm yuklashda tarmoq xatosi, o'tkazib yuborildi:", e);
+            }
+        }
+    }
+
+    // Telegramga yuborish
     try {
-        if (!images || images.length === 0) {
+        if (uploadedImageUrls.length === 0) {
             // Faqat matn
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID, text: text })
             });
+        } else if (uploadedImageUrls.length === 1) {
+            // 1 ta rasm + matn
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: TELEGRAM_CHANNEL_ID,
+                    photo: uploadedImageUrls[0],
+                    caption: text
+                })
+            });
         } else {
-            // Rasmlarni internet havolasiga o'tkazamiz
-            let uploadedImageUrls = [];
-            for (let imgBase64 of images) {
-                try {
-                    let base64Data = imgBase64.split(',')[1];
-                    let formData = new FormData();
-                    formData.append('image', base64Data);
+            // Bir nechta rasm (MediaGroup albom)
+            let mediaGroup = uploadedImageUrls.map((url, index) => ({
+                type: 'photo',
+                media: url,
+                caption: index === 0 ? text : ''
+            }));
 
-                    let res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    let data = await res.json();
-                    if (data.success) {
-                        uploadedImageUrls.push(data.data.url);
-                    }
-                } catch (e) {
-                    console.error("Rasm yuklashda xatolik:", e);
-                }
-            }
-
-            if (uploadedImageUrls.length === 0) {
-                // Agar rasmlar yuklanmasa, faqat matnni yuboramiz
-                await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID, text: text })
-                });
-            } else if (uploadedImageUrls.length === 1) {
-                // 1 ta rasm va matn
-                await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chat_id: TELEGRAM_CHANNEL_ID,
-                        photo: uploadedImageUrls[0],
-                        caption: text
-                    })
-                });
-            } else {
-                // Bir nechta rasm (MediaGroup albom ko'rinishida)
-                let mediaGroup = uploadedImageUrls.map((url, index) => ({
-                    type: 'photo',
-                    media: url,
-                    caption: index === 0 ? text : ''
-                }));
-
-                await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMediaGroup`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chat_id: TELEGRAM_CHANNEL_ID,
-                        media: mediaGroup
-                    })
-                });
-            }
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMediaGroup`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: TELEGRAM_CHANNEL_ID,
+                    media: mediaGroup
+                })
+            });
         }
         alert("E'lon kanalga va portalga muvaffaqiyatli chiqarildi!");
     } catch (err) {
         console.error("Telegramga yuborishda xatolik:", err);
-        alert("Portalga saqlandi, lekin Telegramga yuborishda xatolik yuz berdi.");
+        alert("Portalga saqlandi, lekin Telegramga yuborishda xatolik yuz berdi. Bot kanalda Admin ekanligini tekshiring.");
     }
 }
 
