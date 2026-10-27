@@ -178,13 +178,13 @@ function showApp() {
 
 function switchTab(tabName) {
     document.querySelectorAll('.tab-section').forEach(sec => sec.classList.add('hidden'));
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active', 'bg-blue-600', 'text-white'));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('bg-blue-600', 'text-white'));
     
     const targetSec = document.getElementById(`section-${tabName}`);
     if (targetSec) targetSec.classList.remove('hidden');
     
     const activeBtn = document.getElementById(`tab-btn-${tabName}`);
-    if (activeBtn) activeBtn.classList.add('active', 'bg-blue-600', 'text-white');
+    if (activeBtn) activeBtn.classList.add('bg-blue-600', 'text-white');
 
     if (tabName === 'dashboard') {
         renderDepartmentStats();
@@ -280,7 +280,7 @@ function handlePostSubmit(e) {
     switchTab('my-posts');
 }
 
-// OYLAR KESIMIDA KAFEDRALAR STATISTIKASI JADVALI
+// OYLAR KESIMIDA KAFEDRALAR STATISTIKASI (DASHBOARD)
 function renderDepartmentStats() {
     const dashSection = document.getElementById('section-dashboard');
     if (!dashSection) return;
@@ -401,72 +401,80 @@ window.openReviewModal = function(id) {
         const now = new Date();
         const timeStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
 
-        await sendPostToTelegramChannel(finalText, currentReviewPost.images || []);
+        const approveBtn = document.getElementById('approve-publish-btn');
+        approveBtn.disabled = true;
+        approveBtn.textContent = "Kanalga yuborilmoqda...";
 
-        publishedPosts.unshift({
-            ...currentReviewPost,
-            finalText: finalText,
-            publishedAt: timeStr,
-            reactions: { '👍': 0, '❤️': 0, '🔥': 0, '👏': 0, '😢': 0 },
-            userReactions: {}
-        });
-        
-        pendingPosts = pendingPosts.filter(p => p.id !== currentReviewPost.id);
-        set(ref(db, 'pendingPosts'), pendingPosts);
-        set(ref(db, 'publishedPosts'), publishedPosts);
-        
-        closeReviewModal();
-        switchTab('published-posts');
+        try {
+            await sendPostToTelegramChannel(finalText, currentReviewPost.images || []);
+
+            publishedPosts.unshift({
+                ...currentReviewPost,
+                finalText: finalText,
+                publishedAt: timeStr,
+                reactions: { '👍': 0, '❤️': 0, '🔥': 0, '👏': 0, '😢': 0 },
+                userReactions: {}
+            });
+            
+            pendingPosts = pendingPosts.filter(p => p.id !== currentReviewPost.id);
+            set(ref(db, 'pendingPosts'), pendingPosts);
+            set(ref(db, 'publishedPosts'), publishedPosts);
+            
+            closeReviewModal();
+            switchTab('published-posts');
+        } catch (error) {
+            console.error(error);
+            alert("Telegramga yuborishda xatolik yuz berdi. Iltimos qaytadan urinib ko'ring.");
+        } finally {
+            approveBtn.disabled = false;
+            approveBtn.textContent = "Tasdiqlash va Kanalga Chiqarish";
+        }
     };
 }
 
+// Telegram kanaliga rasm va matnlarni to'g'ri yuborish funksiyasi
 async function sendPostToTelegramChannel(text, images) {
-    try {
-        if (!images || images.length === 0) {
-            await fetch(`https://api.telegram.org/bot${8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chat_id:8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ , text: text })
-            });
-        } else if (images.length === 1) {
-            const formData = new FormData();
-            formData.append('chat_id', TELEGRAM_CHANNEL_ID);
-            formData.append('caption', text);
-            
-            const blob = dataURItoBlob(images[0]);
-            formData.append('photo', blob, 'image.jpg');
+    if (!images || images.length === 0) {
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID, text: text })
+        });
+    } else if (images.length === 1) {
+        const formData = new FormData();
+        formData.append('chat_id', TELEGRAM_CHANNEL_ID);
+        formData.append('caption', text);
+        
+        const blob = dataURItoBlob(images[0]);
+        formData.append('photo', blob, 'image.jpg');
 
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-                method: 'POST',
-                body: formData
-            });
-        } else {
-            const formData = new FormData();
-            formData.append('chat_id', TELEGRAM_CHANNEL_ID);
-            
-            const mediaArray = images.map((img, index) => {
-                const fieldName = `attach_${index}`;
-                const blob = dataURItoBlob(img);
-                formData.append(fieldName, blob, `image_${index}.jpg`);
-                return {
-                    type: 'photo',
-                    media: `attach://${fieldName}`,
-                    caption: index === 0 ? text : ''
-                };
-            });
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+            method: 'POST',
+            body: formData
+        });
+    } else {
+        const formData = new FormData();
+        formData.append('chat_id', TELEGRAM_CHANNEL_ID);
+        
+        const mediaArray = images.map((img, index) => {
+            const fieldName = `attach_${index}`;
+            const blob = dataURItoBlob(img);
+            formData.append(fieldName, blob, `image_${index}.jpg`);
+            return {
+                type: 'photo',
+                media: `attach://${fieldName}`,
+                caption: index === 0 ? text : ''
+            };
+        });
 
-            formData.append('media', JSON.stringify(mediaArray));
+        formData.append('media', JSON.stringify(mediaArray));
 
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMediaGroup`, {
-                method: 'POST',
-                body: formData
-            });
-        }
-        alert("E'lon kanalga va portalga muvaffaqiyatli chiqarildi!");
-    } catch (err) {
-        console.error("Telegramga yuborishda xatolik:", err);
-        alert("Portalga saqlandi, lekin Telegramga yuborishda xatolik yuz berdi. Bot kanalda Admin ekanligini va ruxsatlari borligini tekshiring.");
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMediaGroup`, {
+            method: 'POST',
+            body: formData
+        });
     }
+    alert("E'lon kanalga va portalga muvaffaqiyatli chiqarildi!");
 }
 
 function dataURItoBlob(dataURI) {
@@ -714,7 +722,7 @@ window.saveDeptModalData = function() {
 }
 
 window.deleteDeptUser = function() {
-    const index = parseInt(document.getElementById('modal-dept-index').value);
+    const index = parseInt(document.getElementById('modal-dept-index'].value);
     if (confirm("Haqiqatan ham ushbu kafedrani o'chirmoqchimisiz?")) {
         usersDB.splice(index, 1);
         set(ref(db, 'usersDB'), usersDB);
