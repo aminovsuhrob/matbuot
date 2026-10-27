@@ -39,12 +39,6 @@ let currentReviewPost = null;
 let editingPublishedId = null;
 let currentUploadedImages = [];
 let windowModalAvatar = "";
-
-const quizData = [
-    { q: "Qaysi hayvon asosiy qoramol vabosi qo'zg'atuvchisiga chidamliroq?", options: ["Ot", "Qo'y", "Tuyalar", "Cho'chqa"], answer: 2 },
-    { q: "Veterinariya amaliyotida eng ko'p ishlatiladigan antiseptik eritma?", options: ["Yod", "Furasilin", "Margansovka", "Hammasi"], answer: 3 },
-    { q: "Katta yoshdagi qoramollarning normal tana harorati qanday?", options: ["37.5 - 39.0 °C", "38.0 - 39.5 °C", "39.0 - 40.5 °C", "36.0 - 37.5 °C"], answer: 1 }
-];
 let currentQuizIndex = 0;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -348,7 +342,7 @@ async function sendPostToTelegramChannel(text, images) {
     try {
         if (!images || images.length === 0) {
             // Faqat matnli post yuborish
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            await fetch(`https://api.telegram.org/bot${8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -358,7 +352,7 @@ async function sendPostToTelegramChannel(text, images) {
             });
         } else if (images.length === 1) {
             // 1 ta rasm bilan yuborish
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+            await fetch(`https://api.telegram.org/bot${8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ}/sendPhoto`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -375,7 +369,7 @@ async function sendPostToTelegramChannel(text, images) {
                 caption: idx === 0 ? text : ''
             }));
 
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMediaGroup`, {
+            await fetch(`https://api.telegram.org/bot${8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ}/sendMediaGroup`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
