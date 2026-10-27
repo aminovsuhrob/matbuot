@@ -28,7 +28,7 @@ let usersDB = [];
 let pendingPosts = [];
 let publishedPosts = [];
 let rejectedPosts = [];
-let socialLinks = { telegram: 'https://t.me/samvett', instagram: 'https://instagram.com/samvet_uz', facebook: 'https://facebook.com/samvet' };
+let socialLinks = { telegram: 'https://t.me/matbuot_2026', instagram: 'https://instagram.com/samvet_uz', facebook: 'https://facebook.com/samvet' };
 
 let currentUser = JSON.parse(localStorage.getItem('currentUser')) || null;
 let currentReviewPost = null;
@@ -235,20 +235,36 @@ function handleProfileUpdate(e) {
     }
 }
 
-function handleImageUpload(e) {
-    const files = Array.from(e.target.files);
-    if (files.length > 10) { alert("Maksimum 10 ta rasm!"); return; }
-    currentUploadedImages = [];
+async function handleImageUpload(e) {
+    const files = Array.from(e.target.files || []);
     const container = document.getElementById('image-preview-container');
-    container.innerHTML = "";
-    files.forEach(file => {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            currentUploadedImages.push(ev.target.result);
-            container.innerHTML += `<img src="${ev.target.result}" class="w-full h-20 object-cover rounded-xl border border-slate-700">`;
-        };
-        reader.readAsDataURL(file);
-    });
+    currentUploadedImages = [];
+    if (container) container.innerHTML = "";
+
+    if (files.length > 10) {
+        e.target.value = "";
+        alert("Maksimum 10 ta rasm tanlash mumkin!");
+        return;
+    }
+
+    try {
+        currentUploadedImages = await Promise.all(files.map(file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error(`"${file.name}" rasmini o'qib bo'lmadi.`));
+            reader.readAsDataURL(file);
+        })));
+
+        if (container) {
+            container.innerHTML = currentUploadedImages.map(img =>
+                `<img src="${img}" class="w-full h-20 object-cover rounded-xl border border-slate-700">`
+            ).join("");
+        }
+    } catch (error) {
+        currentUploadedImages = [];
+        if (container) container.innerHTML = "";
+        alert(error.message || "Rasmlarni o'qishda xatolik yuz berdi.");
+    }
 }
 
 function handlePostSubmit(e) {
@@ -310,7 +326,22 @@ window.openReviewModal = function(id) {
     currentReviewPost = post;
     document.getElementById('modal-dept-badge').textContent = `Yuboruvchi kafedra: ${post.dept}`;
     renderReviewModalImages();
-    document.getElementById('modal-final-text').value = `📌 ${post.dept.toUpperCase()}\n\n${post.rawText}\n\nManba: ${post.dept}\n${post.hashtag} #VetFakultet #SamVET`;
+    
+    const defaultHashtag = post.hashtag || "#VetFakultet";
+    document.getElementById('modal-final-text').value = `${defaultHashtag}
+
+📖 AMALIY CHIQISH DARSI
+
+🌱 Universitetning Veterinariya profilaktikasi va davolash fakulteti "${post.dept}" tomonidan talabalar uchun navbatdagi amaliy dars tashkil etildi.
+
+✍️ ${post.rawText}
+
+🚀 Bunday amaliy mashg'ulotlar bo'lajak veterinariya mutaxassislarining kasbiy bilim va ko'nikmalarini rivojlantirishda muhim ahamiyat kasb etadi.
+
+🏛️ Veterinariya profilaktikasi va davolash fakulteti Axborot xizmati
+
+🌐 | Telegram | Instagram | Facebook |`;
+
     document.getElementById('reject-reason-input').value = "";
     document.getElementById('ai-review-modal').classList.remove('hidden');
 
@@ -323,6 +354,7 @@ window.openReviewModal = function(id) {
             ...currentReviewPost,
             finalText: finalText,
             publishedAt: timeStr,
+            sentToTelegram: false, // Bot yuborishi uchun belgi
             reactions: { '👍': 0, '❤️': 0, '🔥': 0, '👏': 0, '😢': 0 },
             userReactions: {}
         });
@@ -331,12 +363,12 @@ window.openReviewModal = function(id) {
         set(ref(db, 'pendingPosts'), pendingPosts);
         set(ref(db, 'publishedPosts'), publishedPosts);
         
+        alert("Xabar muvaffaqiyatli tasdiqlandi va Telegram botga yuborish uchun navbatga qo'yildi!");
         closeReviewModal();
         switchTab('published-posts');
     };
 }
 
-// Moderatsiya oynasidagi rasmlarni chiqarish va o'chirish tugmasi
 function renderReviewModalImages() {
     const galleryContainer = document.getElementById('modal-images-gallery');
     if (!galleryContainer) return;
@@ -358,7 +390,6 @@ function renderReviewModalImages() {
     });
 }
 
-// Moderatsiya oynasidagi keraksiz rasmni o'chirish
 window.removePostImage = function(index) {
     if (currentReviewPost && currentReviewPost.images) {
         currentReviewPost.images.splice(index, 1);
@@ -431,12 +462,11 @@ function renderPublishedPosts() {
     });
 }
 
-// Admin tomonidan kanalga chiqqan postni butunlay o'chirish
 window.deletePublishedPost = function(id) {
-    if (confirm("Haqiqatan ham ushbu e'lonni kanalga chiqqanlar ro'yxatidan o'chirmoqchimisiz?")) {
+    if (confirm("Haqiqatan ham ushbu e'lonni o'chirmoqchimisiz?")) {
         publishedPosts = publishedPosts.filter(p => p.id !== id);
         set(ref(db, 'publishedPosts'), publishedPosts);
-        alert("E'lon muvaffaqiyatli o'chirildi!");
+        alert("E'lon o'chirildi!");
     }
 }
 
