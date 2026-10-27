@@ -30,9 +30,9 @@ const db = getDatabase(app);
 // XAVFSIZLIK UCHUN YANGI BOT TOKENINI KIRITING.
 // Haqiqiy saytda tokenni server tomonida saqlash tavsiya etiladi.
 
-const TELEGRAM_BOT_TOKEN = "YANGI_BOT_TOKENINGIZ";
+const TELEGRAM_BOT_TOKEN = "8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ";
 const TELEGRAM_CHANNEL_ID = "@matbuot_2026";
-const IMGBB_API_KEY = "IMGBB_API_KALITINGIZ";
+const IMGBB_API_KEY = "46a5798bd966ca2c9066fceb623603b3";
 
 /* =========================================================
    3. DASTUR MA'LUMOTLARI
