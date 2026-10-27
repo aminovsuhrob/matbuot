@@ -3,22 +3,20 @@ const multer = require("multer");
 const path = require("path");
 
 const app = express();
-const upload = multer(); // Rasmlarni xotirada vaqtincha ushlab turish uchun
+const upload = multer(); // Rasmlarni xotirada vaqtincha saqlash uchun
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname))); // Frontend fayllarini o'qishi uchun
+app.use(express.static(path.join(__dirname)));
 
-// Telegramga rasm va matn yuborish endpointi
 app.post("/api/telegram-photos", upload.array("photos", 10), async (req, res) => {
     try {
         const files = req.files;
         const caption = req.body.caption || "";
-        // O'z bot tokeningizni shu yerga yozasiz yoki .env dan o'qiysiz
         const botToken = "8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ";
         const chatId = "@matbuot_2026";
 
         if (!files || files.length === 0) {
-            // Faqat matn bo'lsa
+            // Faqat matnli xabar
             const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -42,7 +40,7 @@ app.post("/api/telegram-photos", upload.array("photos", 10), async (req, res) =>
             const result = await response.json();
             return res.status(response.ok ? 200 : 400).json(result);
         } else {
-            // Bir nechta rasm (Albom shaklida - MediaGroup)
+            // Bir nechta rasm (MediaGroup Albom shaklida)
             const form = new FormData();
             form.append("chat_id", chatId);
 
