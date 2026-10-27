@@ -28,7 +28,7 @@ const defaultUsers = [
     { username: 'parazitologiya', password: 'pass5', name: 'Prof. Umarov M.', role: 'user', dept: 'Parazitologiya kafedrasi', hashtag: '#VetParazitologiya', avatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }
 ];
 
-// Zaxira sifatida darhol yuklab qo'yamiz (Login muammosini oldini oladi)
+// Login har doim ishlashi uchun darhol defaultUsers bilan to'ldirib qo'yamiz
 let usersDB = [...defaultUsers];
 let pendingPosts = [];
 let publishedPosts = [];
@@ -198,13 +198,13 @@ function showApp() {
 
 function switchTab(tabName) {
     document.querySelectorAll('.tab-section').forEach(sec => sec.classList.add('hidden'));
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active', 'bg-blue-600', 'text-white'));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('bg-blue-600', 'text-white'));
     
     const targetSec = document.getElementById(`section-${tabName}`);
     if (targetSec) targetSec.classList.remove('hidden');
     
     const activeBtn = document.getElementById(`tab-btn-${tabName}`);
-    if (activeBtn) activeBtn.classList.add('active', 'bg-blue-600', 'text-white');
+    if (activeBtn) activeBtn.classList.add('bg-blue-600', 'text-white');
 
     if (tabName === 'dashboard') {
         renderDepartmentStats();
@@ -452,28 +452,29 @@ window.openReviewModal = function(id) {
     };
 }
 
+// Telegram kanaliga rasm va matnlarni to'g'ri yuborish funksiyasi
 async function sendPostToTelegramChannel(text, images) {
     if (!images || images.length === 0) {
-        await fetch(`https://api.telegram.org/bot${8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ}/sendMessage`, {
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id:@matbuot_2026, text: text })
+            body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID, text: text })
         });
     } else if (images.length === 1) {
         const formData = new FormData();
-        formData.append('chat_id', @matbuot_2026);
+        formData.append('chat_id', TELEGRAM_CHANNEL_ID);
         formData.append('caption', text);
         
         const blob = dataURItoBlob(images[0]);
         formData.append('photo', blob, 'image.jpg');
 
-        await fetch(`https://api.telegram.org/bot${8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ}/sendPhoto`, {
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
             method: 'POST',
             body: formData
         });
     } else {
         const formData = new FormData();
-        formData.append('chat_id', @matbuot_2026);
+        formData.append('chat_id', TELEGRAM_CHANNEL_ID);
         
         const mediaArray = images.map((img, index) => {
             const fieldName = `attach_${index}`;
@@ -488,7 +489,7 @@ async function sendPostToTelegramChannel(text, images) {
 
         formData.append('media', JSON.stringify(mediaArray));
 
-        await fetch(`https://api.telegram.org/bot${8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ}/sendMediaGroup`, {
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMediaGroup`, {
             method: 'POST',
             body: formData
         });
