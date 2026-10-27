@@ -137,7 +137,7 @@ function initFirebaseSync() {
     if (currentUser) {
         showApp();
     } else {
-        document.getElementById('login-screen').classList.remove('hidden');
+        document.getElementById('login-screen').classList.add('hidden');
         document.getElementById('app-content').classList.add('hidden');
     }
 }
@@ -240,7 +240,6 @@ function handleProfileUpdate(e) {
     }
 }
 
-// Xavfsiz va to'liq tasdiqlangan rasm yuklash funksiyasi
 async function handleImageUpload(e) {
     const files = Array.from(e.target.files || []);
     const container = document.getElementById('image-preview-container');
@@ -346,7 +345,23 @@ window.openReviewModal = function(id) {
     currentReviewPost = post;
     document.getElementById('modal-dept-badge').textContent = `Yuboruvchi kafedra: ${post.dept}`;
     renderReviewModalImages();
-    document.getElementById('modal-final-text').value = `📌 ${post.dept.toUpperCase()}\n\n${post.rawText}\n\nManba: ${post.dept}\n${post.hashtag} #VetFakultet #SamVET`;
+    
+    // Rasmda ko'rsatilgan namuna shaklida avtomatik shablon tayyorlash
+    const defaultHashtag = post.hashtag || "#VetFakultet";
+    document.getElementById('modal-final-text').value = `${defaultHashtag}
+
+📖 AMALIY CHIQISH DARSI
+
+🌱 Universitetning Veterinariya profilaktikasi va davolash fakulteti "${post.dept}" tomonidan talabalar uchun universitet tajriba xo'jaligida navbatdagi amaliy chiqish darsi tashkil etildi.
+
+✍️ Amaliy mashg'ulot davomida talabalar nazariy bilimlarini amaliyotda mustahkamlab, sohaga oid muhim amaliy ko'nikmalarga ega bo'ldilar.
+
+🚀 Bunday amaliy mashg'ulotlar bo'lajak veterinariya mutaxassislarining kasbiy bilim va ko'nikmalarini rivojlantirishda muhim ahamiyat kasb etadi.
+
+🏛️ Veterinariya profilaktikasi va davolash fakulteti Axborot xizmati
+
+🌐 | Telegram | Instagram | Facebook |`;
+
     document.getElementById('reject-reason-input').value = "";
     document.getElementById('ai-review-modal').classList.remove('hidden');
 
@@ -389,7 +404,7 @@ window.openReviewModal = function(id) {
     };
 }
 
-// ImgBB ga rasm yuklash
+// ImgBB orqali rasmni internetga yuklash
 async function uploadImageToImgBB(imageData, index) {
     if (!IMGBB_API_KEY || IMGBB_API_KEY === "PASTE_IMGBB_API_KEY_HERE") {
         throw new Error("ImgBB API kaliti kiritilmagan.");
@@ -427,7 +442,7 @@ async function uploadImageToImgBB(imageData, index) {
     return result.data.url;
 }
 
-// Telegram API so'rov yuborish
+// Telegram API ga so'rov yuborish
 async function telegramApi(method, payload) {
     if (!TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN === "PASTE_NEW_BOT_TOKEN_HERE") {
         throw new Error("Telegram bot tokeni kiritilmagan.");
@@ -452,7 +467,7 @@ async function telegramApi(method, payload) {
     return result;
 }
 
-// Telegram kanalga xabar va rasmlarni to'liq yuborish
+// Telegram kanalga xabar va rasmlarni rasmda ko'rsatilgan tartibda yuborish
 async function sendPostToTelegramChannel(text, images = []) {
     const cleanText = (text || "").trim();
     const postImages = Array.isArray(images) ? images.filter(Boolean) : [];
@@ -517,7 +532,6 @@ async function sendPostToTelegramChannel(text, images = []) {
     return true;
 }
 
-// Moderatsiya oynasidagi rasmlarni chiqarish va o'chirish
 function renderReviewModalImages() {
     const galleryContainer = document.getElementById('modal-images-gallery');
     if (!galleryContainer) return;
