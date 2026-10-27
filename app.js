@@ -40,13 +40,6 @@ let editingPublishedId = null;
 let currentUploadedImages = [];
 let windowModalAvatar = "";
 
-const quizData = [
-    { q: "Qaysi hayvon asosiy qoramol vabosi qo'zg'atuvchisiga chidamliroq?", options: ["Ot", "Qo'y", "Tuyalar", "Cho'chqa"], answer: 2 },
-    { q: "Veterinariya amaliyotida eng ko'p ishlatiladigan antiseptik eritma?", options: ["Yod", "Furasilin", "Margansovka", "Hammasi"], answer: 3 },
-    { q: "Katta yoshdagi qoramollarning normal tana harorati qanday?", options: ["37.5 - 39.0 °C", "38.0 - 39.5 °C", "39.0 - 40.5 °C", "36.0 - 37.5 °C"], answer: 1 }
-];
-let currentQuizIndex = 0;
-
 document.addEventListener('DOMContentLoaded', () => {
     initFirebaseSync();
 
@@ -81,8 +74,6 @@ document.addEventListener('DOMContentLoaded', () => {
         set(ref(db, 'socialLinks'), socialLinks);
         alert("Ijtimoiy tarmoq havolalari yangilandi!");
     });
-
-    loadQuizQuestion();
 });
 
 function initFirebaseSync() {
@@ -99,6 +90,7 @@ function initFirebaseSync() {
             if (latest) currentUser = latest;
         }
         renderUsers();
+        renderDepartmentStats();
     });
 
     onValue(ref(db, 'pendingPosts'), (snapshot) => {
@@ -113,6 +105,7 @@ function initFirebaseSync() {
         publishedPosts = data ? Object.values(data) : [];
         renderPublishedPosts();
         renderMyPosts();
+        renderDepartmentStats();
     });
 
     onValue(ref(db, 'rejectedPosts'), (snapshot) => {
@@ -185,10 +178,17 @@ function showApp() {
 
 function switchTab(tabName) {
     document.querySelectorAll('.tab-section').forEach(sec => sec.classList.add('hidden'));
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('bg-blue-600', 'text-white'));
-    document.getElementById(`section-${tabName}`).classList.remove('hidden');
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active', 'bg-blue-600', 'text-white'));
+    
+    const targetSec = document.getElementById(`section-${tabName}`);
+    if (targetSec) targetSec.classList.remove('hidden');
+    
     const activeBtn = document.getElementById(`tab-btn-${tabName}`);
-    if (activeBtn) activeBtn.classList.add('bg-blue-600', 'text-white');
+    if (activeBtn) activeBtn.classList.add('active', 'bg-blue-600', 'text-white');
+
+    if (tabName === 'dashboard') {
+        renderDepartmentStats();
+    }
 }
 
 function handleAvatarUpload(e) {
@@ -280,6 +280,84 @@ function handlePostSubmit(e) {
     switchTab('my-posts');
 }
 
+// OYLAR KESIMIDA KAFEDRALAR STATISTIKASI JADVALI
+function renderDepartmentStats() {
+    const dashSection = document.getElementById('section-dashboard');
+    if (!dashSection) return;
+
+    let statsCard = document.getElementById('department-stats-card');
+    if (!statsCard) {
+        statsCard = document.createElement('div');
+        statsCard.id = 'department-stats-card';
+        statsCard.className = 'bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl space-y-4 mt-6';
+        statsCard.innerHTML = `
+            <div class="flex items-center justify-between">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-chart-column text-blue-500"></i> Oylar kesimida kafedralar faolligi (Statistika)
+                </h3>
+                <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-lg border border-emerald-500/20 font-semibold">Real vaqt</span>
+            </div>
+            <div id="department-stats-container" class="overflow-x-auto"></div>
+        `;
+        dashSection.appendChild(statsCard);
+    }
+
+    const container = document.getElementById('department-stats-container');
+    if (!container) return;
+
+    const departments = usersDB.filter(u => u.role !== 'admin').map(u => u.dept);
+    const statsMap = {}; 
+    const monthsSet = new Set();
+
+    publishedPosts.forEach(post => {
+        const dept = post.dept;
+        const postDate = new Date(post.id || Date.now());
+        const monthName = postDate.toLocaleString('uz-UZ', { month: 'long', year: 'numeric' });
+        
+        monthsSet.add(monthName);
+
+        if (!statsMap[dept]) {
+            statsMap[dept] = {};
+        }
+        statsMap[dept][monthName] = (statsMap[dept][monthName] || 0) + 1;
+    });
+
+    const months = Array.from(monthsSet);
+
+    if (publishedPosts.length === 0 || departments.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">Hozircha kanalga chiqarilgan e'lonlar mavjud emas.</p>`;
+        return;
+    }
+
+    let tableHtml = `
+        <table class="w-full text-left border-collapse text-xs">
+            <thead>
+                <tr class="border-b border-slate-800 text-slate-400">
+                    <th class="py-3 px-4 font-semibold">Kafedra / Bo'lim</th>`;
+    
+    months.forEach(m => {
+        tableHtml += `<th class="py-3 px-4 font-semibold text-center">${m}</th>`;
+    });
+    tableHtml += `<th class="py-3 px-4 font-semibold text-center">Jami</th>`;
+    tableHtml += `</tr></thead><tbody class="divide-y divide-slate-800/60">`;
+
+    departments.forEach(dept => {
+        let deptTotal = 0;
+        tableHtml += `<tr class="hover:bg-slate-950/50"><td class="py-3 px-4 text-slate-200 font-medium">${dept}</td>`;
+        
+        months.forEach(m => {
+            const count = statsMap[dept]?.[m] || 0;
+            deptTotal += count;
+            tableHtml += `<td class="py-3 px-4 text-center text-slate-300">${count > 0 ? `<span class="px-2.5 py-1 bg-blue-500/10 text-blue-400 rounded-lg font-bold">${count}</span>` : '-'}</td>`;
+        });
+        
+        tableHtml += `<td class="py-3 px-4 text-center font-bold text-emerald-400">${deptTotal}</td></tr>`;
+    });
+
+    tableHtml += `</tbody></table>`;
+    container.innerHTML = tableHtml;
+}
+
 function renderPendingPosts() {
     const container = document.getElementById('pending-posts-container');
     if (!container) return;
@@ -323,7 +401,6 @@ window.openReviewModal = function(id) {
         const now = new Date();
         const timeStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
 
-        // Telegramga matn va rasmlarni xavfsiz tarzda yuborish
         await sendPostToTelegramChannel(finalText, currentReviewPost.images || []);
 
         publishedPosts.unshift({
@@ -343,18 +420,15 @@ window.openReviewModal = function(id) {
     };
 }
 
-// Baza64 rasmlarni Blob/File ko'rinishiga o'tkazib Telegramga yuborish funksiyasi
 async function sendPostToTelegramChannel(text, images) {
     try {
         if (!images || images.length === 0) {
-            // Faqat matn
             await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID, text: text })
             });
         } else if (images.length === 1) {
-            // 1 ta rasm va matn (Multipart/form-data orqali yuboriladi)
             const formData = new FormData();
             formData.append('chat_id', TELEGRAM_CHANNEL_ID);
             formData.append('caption', text);
@@ -367,7 +441,6 @@ async function sendPostToTelegramChannel(text, images) {
                 body: formData
             });
         } else {
-            // Bir nechta rasm (MediaGroup albom ko'rinishida)
             const formData = new FormData();
             formData.append('chat_id', TELEGRAM_CHANNEL_ID);
             
@@ -396,7 +469,6 @@ async function sendPostToTelegramChannel(text, images) {
     }
 }
 
-// Base64 rasmni Binary File (Blob) formatiga o'tkazuvchi yordamchi funksiya
 function dataURItoBlob(dataURI) {
     const byteString = atob(dataURI.split(',')[1]);
     const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
@@ -408,7 +480,6 @@ function dataURItoBlob(dataURI) {
     return new Blob([ab], { type: mimeString });
 }
 
-// Moderatsiya oynasidagi rasmlarni chiqarish va o'chirish tugmasi
 function renderReviewModalImages() {
     const galleryContainer = document.getElementById('modal-images-gallery');
     if (!galleryContainer) return;
@@ -430,7 +501,6 @@ function renderReviewModalImages() {
     });
 }
 
-// Moderatsiya oynasidagi keraksiz rasmni o'chirish
 window.removePostImage = function(index) {
     if (currentReviewPost && currentReviewPost.images) {
         currentReviewPost.images.splice(index, 1);
@@ -503,7 +573,6 @@ function renderPublishedPosts() {
     });
 }
 
-// Admin tomonidan kanalga chiqqan postni o'chirish
 window.deletePublishedPost = function(id) {
     if (confirm("Haqiqatan ham ushbu e'lonni portal arxividan o'chirmoqchimisiz?")) {
         publishedPosts = publishedPosts.filter(p => p.id !== id);
@@ -590,36 +659,6 @@ window.openLightbox = function(imgSrc) {
     document.getElementById('lightbox-modal').classList.remove('hidden');
 }
 window.closeLightbox = function() { document.getElementById('lightbox-modal').classList.add('hidden'); }
-
-function loadQuizQuestion() {
-    if (currentQuizIndex >= quizData.length) currentQuizIndex = 0;
-    const q = quizData[currentQuizIndex];
-    document.getElementById('quiz-question').textContent = `${currentQuizIndex + 1}-savol: ${q.q}`;
-    const optContainer = document.getElementById('quiz-options');
-    optContainer.innerHTML = "";
-    q.options.forEach((opt, idx) => {
-        optContainer.innerHTML += `<button onclick="checkQuizAnswer(${idx})" class="w-full text-left bg-slate-900 hover:bg-slate-800 border border-slate-800 p-3 rounded-xl text-xs text-slate-200 transition">${opt}</button>`;
-    });
-    document.getElementById('quiz-result').classList.add('hidden');
-    document.getElementById('next-quiz-btn').classList.add('hidden');
-}
-
-window.checkQuizAnswer = function(selectedIdx) {
-    const q = quizData[currentQuizIndex];
-    const resBox = document.getElementById('quiz-result');
-    resBox.classList.remove('hidden');
-    if (selectedIdx === q.answer) {
-        resBox.innerHTML = `<span class="text-emerald-400">To'g'ri javob! Barakalla! 🌟</span>`;
-    } else {
-        resBox.innerHTML = `<span class="text-rose-400">Noto'g'ri. To'g'ri javob: ${q.options[q.answer]}</span>`;
-    }
-    document.getElementById('next-quiz-btn').classList.remove('hidden');
-}
-
-window.nextQuizQuestion = function() {
-    currentQuizIndex++;
-    loadQuizQuestion();
-}
 
 function renderUsers() {
     const container = document.getElementById('departments-list-container');
