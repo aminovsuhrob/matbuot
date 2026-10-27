@@ -423,10 +423,10 @@ window.openReviewModal = function(id) {
 async function sendPostToTelegramChannel(text, images) {
     try {
         if (!images || images.length === 0) {
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            await fetch(`https://api.telegram.org/bot${8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID, text: text })
+                body: JSON.stringify({ chat_id:8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ , text: text })
             });
         } else if (images.length === 1) {
             const formData = new FormData();
