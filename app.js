@@ -435,10 +435,10 @@ window.openReviewModal = function(id) {
 // Telegram kanaliga rasm va matnlarni to'g'ri yuborish funksiyasi
 async function sendPostToTelegramChannel(text, images) {
     if (!images || images.length === 0) {
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        await fetch(`https://api.telegram.org/bot${8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID, text: text })
+            body: JSON.stringify({ chat_id: @matbuot_2026, text: text })
         });
     } else if (images.length === 1) {
         const formData = new FormData();
@@ -448,7 +448,7 @@ async function sendPostToTelegramChannel(text, images) {
         const blob = dataURItoBlob(images[0]);
         formData.append('photo', blob, 'image.jpg');
 
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
+        await fetch(`https://api.telegram.org/bot${8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ}/sendPhoto`, {
             method: 'POST',
             body: formData
         });
