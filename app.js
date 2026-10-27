@@ -81,9 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadQuizQuestion();
 });
 
-// FIREBASE REALTIME SYNC (Real vaqt rejimi)
 function initFirebaseSync() {
-    // Users
     onValue(ref(db, 'usersDB'), (snapshot) => {
         const data = snapshot.val();
         if (data) {
@@ -99,7 +97,6 @@ function initFirebaseSync() {
         renderUsers();
     });
 
-    // Pending Posts
     onValue(ref(db, 'pendingPosts'), (snapshot) => {
         const data = snapshot.val();
         pendingPosts = data ? Object.values(data) : [];
@@ -107,7 +104,6 @@ function initFirebaseSync() {
         renderMyPosts();
     });
 
-    // Published Posts
     onValue(ref(db, 'publishedPosts'), (snapshot) => {
         const data = snapshot.val();
         publishedPosts = data ? Object.values(data) : [];
@@ -115,14 +111,12 @@ function initFirebaseSync() {
         renderMyPosts();
     });
 
-    // Rejected Posts
     onValue(ref(db, 'rejectedPosts'), (snapshot) => {
         const data = snapshot.val();
         rejectedPosts = data ? Object.values(data) : [];
         renderMyPosts();
     });
 
-    // Social Links
     onValue(ref(db, 'socialLinks'), (snapshot) => {
         const data = snapshot.val();
         if (data) {
@@ -315,7 +309,7 @@ window.openReviewModal = function(id) {
     if (!post) return;
     currentReviewPost = post;
     document.getElementById('modal-dept-badge').textContent = `Yuboruvchi kafedra: ${post.dept}`;
-    document.getElementById('modal-images-gallery').innerHTML = (post.images || []).map(img => `<img src="${img}" class="gallery-thumb" onclick="openLightbox('${img}')">`).join('');
+    renderReviewModalImages();
     document.getElementById('modal-final-text').value = `📌 ${post.dept.toUpperCase()}\n\n${post.rawText}\n\nManba: ${post.dept}\n${post.hashtag} #VetFakultet #SamVET`;
     document.getElementById('reject-reason-input').value = "";
     document.getElementById('ai-review-modal').classList.remove('hidden');
@@ -326,20 +320,50 @@ window.openReviewModal = function(id) {
         const timeStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
 
         publishedPosts.unshift({
-            ...post,
+            ...currentReviewPost,
             finalText: finalText,
             publishedAt: timeStr,
             reactions: { '👍': 0, '❤️': 0, '🔥': 0, '👏': 0, '😢': 0 },
             userReactions: {}
         });
         
-        pendingPosts = pendingPosts.filter(p => p.id !== id);
+        pendingPosts = pendingPosts.filter(p => p.id !== currentReviewPost.id);
         set(ref(db, 'pendingPosts'), pendingPosts);
         set(ref(db, 'publishedPosts'), publishedPosts);
         
         closeReviewModal();
         switchTab('published-posts');
     };
+}
+
+// Moderatsiya oynasidagi rasmlarni chiqarish va o'chirish
+function renderReviewModalImages() {
+    const galleryContainer = document.getElementById('modal-images-gallery');
+    if (!galleryContainer) return;
+    galleryContainer.innerHTML = "";
+
+    if (!currentReviewPost.images || currentReviewPost.images.length === 0) {
+        galleryContainer.innerHTML = `<span class="text-xs text-slate-500">Rasmlar mavjud emas</span>`;
+        return;
+    }
+
+    currentReviewPost.images.forEach((img, index) => {
+        galleryContainer.innerHTML += `
+            <div class="relative group">
+                <img src="${img}" class="gallery-thumb">
+                <button type="button" onclick="removePostImage(${index})" class="absolute top-1 right-1 bg-rose-600 hover:bg-rose-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-lg transition" title="Rasmni o'chirish">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>`;
+    });
+}
+
+// Moderatsiya oynasida rasm o'chirish funksiyasi
+window.removePostImage = function(index) {
+    if (currentReviewPost && currentReviewPost.images) {
+        currentReviewPost.images.splice(index, 1);
+        renderReviewModalImages();
+    }
 }
 
 window.rejectPostAction = function() {
@@ -500,7 +524,7 @@ window.checkQuizAnswer = function(selectedIdx) {
     } else {
         resBox.innerHTML = `<span class="text-rose-400">Noto'g'ri. To'g'ri javob: ${q.options[q.answer]}</span>`;
     }
-    document.getElementById('next-quiz-btn').classList.remove('hidden');
+    document.getElementById('next-quiz-btn').classList.add('hidden');
 }
 
 window.nextQuizQuestion = function() {
