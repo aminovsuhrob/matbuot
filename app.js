@@ -15,6 +15,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
+// TELEGRAM VA IMGBB SOZLAMALARI
+const TELEGRAM_BOT_TOKEN = "8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ";
+const TELEGRAM_CHANNEL_ID = "@matbuot_2026";
+const IMGBB_API_KEY = "6d207e02194a847aa98d2a6326075b9f"; 
+
 const defaultUsers = [
     { username: 'admin', password: 'admin123', name: 'Bosh Admin', role: 'admin', dept: 'Matbuot Xizmati Markazi', hashtag: '#VetMatbuot', avatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' },
     { username: 'anatomiya', password: 'pass1', name: 'Prof. Karimov T.', role: 'user', dept: 'Hayvonlar anatomiyasi, gistologiyasi va patologik anatomiya kafedrasi', hashtag: '#VetAnatomiya', avatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' },
@@ -247,6 +252,15 @@ async function handleImageUpload(e) {
         return;
     }
 
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    for (const file of files) {
+        if (!allowedTypes.includes(file.type)) {
+            e.target.value = "";
+            alert("Faqat JPG, PNG yoki WEBP formatidagi rasmlarni tanlang.");
+            return;
+        }
+    }
+
     try {
         currentUploadedImages = await Promise.all(files.map(file => new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -327,12 +341,13 @@ window.openReviewModal = function(id) {
     document.getElementById('modal-dept-badge').textContent = `Yuboruvchi kafedra: ${post.dept}`;
     renderReviewModalImages();
     
+    // Rasmda ko'rsatilgan namunadagi chiroyli dizayn shabloni
     const defaultHashtag = post.hashtag || "#VetFakultet";
     document.getElementById('modal-final-text').value = `${defaultHashtag}
 
 📖 AMALIY CHIQISH DARSI
 
-🌱 Universitetning Veterinariya profilaktikasi va davolash fakulteti "${post.dept}" tomonidan talabalar uchun navbatdagi amaliy dars tashkil etildi.
+🌱 Universitetning Veterinariya profilaktikasi va davolash fakulteti "${post.dept}" tomonidan talabalar uchun universitet tajriba xo'jaligida navbatdagi amaliy chiqish darsi tashkil etildi.
 
 ✍️ ${post.rawText}
 
@@ -345,16 +360,30 @@ window.openReviewModal = function(id) {
     document.getElementById('reject-reason-input').value = "";
     document.getElementById('ai-review-modal').classList.remove('hidden');
 
-    document.getElementById('approve-publish-btn').onclick = () => {
+    document.getElementById('approve-publish-btn').onclick = async () => {
         const finalText = document.getElementById('modal-final-text').value;
         const now = new Date();
         const timeStr = `${now.toLocaleDateString()} ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+
+        const approveButton = document.getElementById('approve-publish-btn');
+        approveButton.disabled = true;
+        const originalButtonText = approveButton.textContent;
+        approveButton.textContent = "Yuborilmoqda...";
+
+        try {
+            await sendPostToTelegramChannel(finalText, currentReviewPost.images || []);
+        } catch (error) {
+            console.error("Telegramga yuborishda xatolik:", error);
+            alert("Telegramga yuborilmadi: " + (error.message || "Noma'lum xatolik") + "\n\nBot kanalga administrator qilib qo'shilganini, token va ImgBB API kalitini tekshiring.");
+            approveButton.disabled = false;
+            approveButton.textContent = originalButtonText;
+            return;
+        }
 
         publishedPosts.unshift({
             ...currentReviewPost,
             finalText: finalText,
             publishedAt: timeStr,
-            sentToTelegram: false, // Bot yuborishi uchun belgi
             reactions: { '👍': 0, '❤️': 0, '🔥': 0, '👏': 0, '😢': 0 },
             userReactions: {}
         });
@@ -363,10 +392,119 @@ window.openReviewModal = function(id) {
         set(ref(db, 'pendingPosts'), pendingPosts);
         set(ref(db, 'publishedPosts'), publishedPosts);
         
-        alert("Xabar muvaffaqiyatli tasdiqlandi va Telegram botga yuborish uchun navbatga qo'yildi!");
+        approveButton.disabled = false;
+        approveButton.textContent = originalButtonText;
         closeReviewModal();
         switchTab('published-posts');
     };
+}
+
+// ImgBB orqali rasmni to'g'ridan-to'g'ri internetga yuklash
+async function uploadImageToImgBB(imageData, index) {
+    if (!IMGBB_API_KEY) {
+        throw new Error("ImgBB API kaliti topilmadi.");
+    }
+
+    if (typeof imageData === "string" && /^https?:\/\//i.test(imageData)) {
+        return imageData;
+    }
+
+    const base64Data = imageData.split(",")[1];
+    if (!base64Data) throw new Error(`${index + 1}-rasm formati noto'g'ri.`);
+
+    const formData = new FormData();
+    formData.append("image", base64Data);
+
+    const response = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(IMGBB_API_KEY)}`, {
+        method: "POST",
+        body: formData
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+        throw new Error(`ImgBB ${index + 1}-rasmni yuklay olmadi.`);
+    }
+    return result.data.url;
+}
+
+// Telegram API so'rov yuborish
+async function telegramApi(method, payload) {
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+        throw new Error(result?.description || `Telegram API xatosi.`);
+    }
+    return result;
+}
+
+// Rasmlar va matnni kanalga mukammal tartibda yuborish
+async function sendPostToTelegramChannel(text, images = []) {
+    const cleanText = (text || "").trim();
+    const postImages = Array.isArray(images) ? images.filter(Boolean) : [];
+
+    if (!cleanText && postImages.length === 0) {
+        throw new Error("Yuborish uchun matn yoki rasm mavjud emas.");
+    }
+
+    const caption = cleanText.length <= 1024 ? cleanText : cleanText.slice(0, 1010) + "…";
+
+    if (postImages.length === 0) {
+        await telegramApi("sendMessage", {
+            chat_id: TELEGRAM_CHANNEL_ID,
+            text: cleanText.slice(0, 4096)
+        });
+        return true;
+    }
+
+    // Rasmlarni ImgBB havolalariga o'tkazamiz
+    const imageUrls = await Promise.all(postImages.map((img, index) => uploadImageToImgBB(img, index)));
+
+    if (imageUrls.length === 1) {
+        await telegramApi("sendPhoto", {
+            chat_id: TELEGRAM_CHANNEL_ID,
+            photo: imageUrls[0],
+            caption
+        });
+    } else {
+        // Bir nechta rasm bo'lsa Telegram Albom (MediaGroup) ko'rinishida yuboriladi
+        for (let start = 0; start < imageUrls.length; start += 10) {
+            const chunk = imageUrls.slice(start, start + 10);
+            if (chunk.length === 1) {
+                await telegramApi("sendPhoto", {
+                    chat_id: TELEGRAM_CHANNEL_ID,
+                    photo: chunk[0],
+                    caption: start === 0 ? caption : ""
+                });
+            } else {
+                const media = chunk.map((url, index) => ({
+                    type: "photo",
+                    media: url,
+                    ...(start === 0 && index === 0 ? { caption } : {})
+                }));
+                await telegramApi("sendMediaGroup", {
+                    chat_id: TELEGRAM_CHANNEL_ID,
+                    media
+                });
+            }
+        }
+    }
+
+    // Agar matn uzunligi 1024 belgidan oshsa, qolgan qismi alohida matn bo'lib boradi
+    if (cleanText.length > 1024) {
+        for (let i = 1024; i < cleanText.length; i += 4000) {
+            await telegramApi("sendMessage", {
+                chat_id: TELEGRAM_CHANNEL_ID,
+                text: cleanText.slice(i, i + 4000)
+            });
+        }
+    }
+
+    return true;
 }
 
 function renderReviewModalImages() {
@@ -463,7 +601,7 @@ function renderPublishedPosts() {
 }
 
 window.deletePublishedPost = function(id) {
-    if (confirm("Haqiqatan ham ushbu e'lonni o'chirmoqchimisiz?")) {
+    if (confirm("Haqiqatan ham ushbu e'lonni kanalga chiqqanlar ro'yxatidan o'chirmoqchimisiz?")) {
         publishedPosts = publishedPosts.filter(p => p.id !== id);
         set(ref(db, 'publishedPosts'), publishedPosts);
         alert("E'lon o'chirildi!");
