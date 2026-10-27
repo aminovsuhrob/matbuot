@@ -336,14 +336,14 @@ window.openReviewModal = function(id) {
     };
 }
 
-// Moderatsiya oynasidagi rasmlarni chiqarish va o'chirish
+// Moderatsiya oynasidagi rasmlarni chiqarish va o'chirish tugmasi bilan ta'minlash
 function renderReviewModalImages() {
     const galleryContainer = document.getElementById('modal-images-gallery');
     if (!galleryContainer) return;
     galleryContainer.innerHTML = "";
 
     if (!currentReviewPost.images || currentReviewPost.images.length === 0) {
-        galleryContainer.innerHTML = `<span class="text-xs text-slate-500">Rasmlar mavjud emas</span>`;
+        galleryContainer.innerHTML = `<span class="text-xs text-slate-500 col-span-5">Rasmlar mavjud emas</span>`;
         return;
     }
 
@@ -351,14 +351,14 @@ function renderReviewModalImages() {
         galleryContainer.innerHTML += `
             <div class="relative group">
                 <img src="${img}" class="gallery-thumb">
-                <button type="button" onclick="removePostImage(${index})" class="absolute top-1 right-1 bg-rose-600 hover:bg-rose-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-lg transition" title="Rasmni o'chirish">
+                <button type="button" onclick="removePostImage(${index})" class="absolute -top-2 -right-2 bg-rose-600 hover:bg-rose-500 text-white w-7 h-7 rounded-full flex items-center justify-center text-xs shadow-xl transition border-2 border-slate-900 cursor-pointer" title="Rasmni o'chirish">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>`;
     });
 }
 
-// Moderatsiya oynasida rasm o'chirish funksiyasi
+// Moderatsiya oynasida rasmni massivdan o'chirib, ekranni yangilash
 window.removePostImage = function(index) {
     if (currentReviewPost && currentReviewPost.images) {
         currentReviewPost.images.splice(index, 1);
@@ -498,6 +498,7 @@ window.closeAdminEditModal = function() { document.getElementById('admin-edit-mo
 window.openLightbox = function(imgSrc) {
     document.getElementById('lightbox-img').src = imgSrc;
     document.getElementById('lightbox-download-btn').href = imgSrc;
+    document.getElementById('lightbox-modal').classList.add('hidden'); // Fix toggle
     document.getElementById('lightbox-modal').classList.remove('hidden');
 }
 window.closeLightbox = function() { document.getElementById('lightbox-modal').classList.add('hidden'); }
@@ -524,7 +525,7 @@ window.checkQuizAnswer = function(selectedIdx) {
     } else {
         resBox.innerHTML = `<span class="text-rose-400">Noto'g'ri. To'g'ri javob: ${q.options[q.answer]}</span>`;
     }
-    document.getElementById('next-quiz-btn').classList.add('hidden');
+    document.getElementById('next-quiz-btn').classList.remove('hidden');
 }
 
 window.nextQuizQuestion = function() {
