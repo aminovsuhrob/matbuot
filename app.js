@@ -15,8 +15,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// TELEGRAM SERVER SOZLAMASI (bot tokeni serverda maxfiy saqlanadi)
-const TELEGRAM_SEND_ENDPOINT = "https://us-central1-fakultet-hujjatlari.cloudfunctions.net/sendPostToTelegram";
+// TELEGRAM VA IMGBB SOZLAMALARI
+const TELEGRAM_BOT_TOKEN = "8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ";
+const TELEGRAM_CHANNEL_ID = "@matbuot_2026";
+const IMGBB_API_KEY = "6d207e02194a847aa98d2a6326075b9f"; 
 
 const defaultUsers = [
     { username: 'admin', password: 'admin123', name: 'Bosh Admin', role: 'admin', dept: 'Matbuot Xizmati Markazi', hashtag: '#VetMatbuot', avatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' },
@@ -238,95 +240,47 @@ function handleProfileUpdate(e) {
     }
 }
 
-async function compressImageFile(file, maxBytes = 450 * 1024) {
-    const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error(`"${file.name}" rasmini o'qib bo'lmadi.`));
-        reader.readAsDataURL(file);
-    });
-
-    const image = await new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error(`"${file.name}" rasmini ochib bo'lmadi.`));
-        img.src = dataUrl;
-    });
-
-    const maxDimension = 1600;
-    const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(image.width * scale));
-    canvas.height = Math.max(1, Math.round(image.height * scale));
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Rasmni qayta ishlash imkoni bo\'lmadi.');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-    let quality = 0.86;
-    let blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
-    while (blob && blob.size > maxBytes && quality > 0.42) {
-        quality -= 0.1;
-        blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
-    }
-    if (!blob) throw new Error(`"${file.name}" rasmini siqib bo'lmadi.`);
-    if (blob.size > maxBytes) throw new Error(`"${file.name}" rasmi juda katta. Kichikroq rasm tanlang.`);
-
-    return await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error('Siqilgan rasmni o\'qib bo\'lmadi.'));
-        reader.readAsDataURL(blob);
-    });
-}
-
 async function handleImageUpload(e) {
     const files = Array.from(e.target.files || []);
     const container = document.getElementById('image-preview-container');
     currentUploadedImages = [];
-    if (container) container.innerHTML = '';
+    if (container) container.innerHTML = "";
 
     if (files.length > 10) {
-        e.target.value = '';
-        alert('Maksimum 10 ta rasm tanlash mumkin!');
+        e.target.value = "";
+        alert("Maksimum 10 ta rasm tanlash mumkin!");
         return;
     }
 
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
     for (const file of files) {
         if (!allowedTypes.includes(file.type)) {
-            e.target.value = '';
-            alert('Faqat JPG, PNG yoki WEBP formatidagi rasmlarni tanlang.');
-            return;
-        }
-        if (file.size > 15 * 1024 * 1024) {
-            e.target.value = '';
-            alert(`"${file.name}" fayli 15 MB dan katta. Kichikroq rasm tanlang.`);
+            e.target.value = "";
+            alert("Faqat JPG, PNG yoki WEBP formatidagi rasmlarni tanlang.");
             return;
         }
     }
 
     try {
-        currentUploadedImages = await Promise.all(files.map(file => compressImageFile(file)));
-        const totalSize = currentUploadedImages.reduce((sum, data) => sum + Math.ceil(data.length * 0.75), 0);
-        if (totalSize > 5 * 1024 * 1024) {
-            currentUploadedImages = [];
-            e.target.value = '';
-            throw new Error('Rasmlarning umumiy hajmi katta. 10 tadan kamroq yoki kichikroq rasm tanlang.');
-        }
+        currentUploadedImages = await Promise.all(files.map(file => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error(`"${file.name}" rasmini o'qib bo'lmadi.`));
+            reader.readAsDataURL(file);
+        })));
 
         if (container) {
             container.innerHTML = currentUploadedImages.map(img =>
                 `<img src="${img}" class="w-full h-20 object-cover rounded-xl border border-slate-700">`
-            ).join('');
+            ).join("");
         }
     } catch (error) {
         currentUploadedImages = [];
-        if (container) container.innerHTML = '';
-        alert(error.message || 'Rasmlarni tayyorlashda xatolik yuz berdi.');
+        if (container) container.innerHTML = "";
+        alert(error.message || "Rasmlarni o'qishda xatolik yuz berdi.");
     }
 }
+
 function handlePostSubmit(e) {
     e.preventDefault();
     const rawText = document.getElementById('post-raw-text').value.trim();
@@ -445,42 +399,114 @@ window.openReviewModal = function(id) {
     };
 }
 
-// Matn va rasmlarni xavfsiz server orqali Telegram kanaliga yuborish.
-// Bot tokeni bu faylda bo'lmaydi; Firebase Functions serverida saqlanadi.
+// ImgBB orqali rasmni to'g'ridan-to'g'ri internetga yuklash
+async function uploadImageToImgBB(imageData, index) {
+    if (!IMGBB_API_KEY) {
+        throw new Error("ImgBB API kaliti topilmadi.");
+    }
+
+    if (typeof imageData === "string" && /^https?:\/\//i.test(imageData)) {
+        return imageData;
+    }
+
+    const base64Data = imageData.split(",")[1];
+    if (!base64Data) throw new Error(`${index + 1}-rasm formati noto'g'ri.`);
+
+    const formData = new FormData();
+    formData.append("image", base64Data);
+
+    const response = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(IMGBB_API_KEY)}`, {
+        method: "POST",
+        body: formData
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+        throw new Error(`ImgBB ${index + 1}-rasmni yuklay olmadi.`);
+    }
+    return result.data.url;
+}
+
+// Telegram API so'rov yuborish
+async function telegramApi(method, payload) {
+    const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+        throw new Error(result?.description || `Telegram API xatosi.`);
+    }
+    return result;
+}
+
+// Rasmlar va matnni kanalga mukammal tartibda yuborish
 async function sendPostToTelegramChannel(text, images = []) {
-    const cleanText = String(text || '').trim();
+    const cleanText = (text || "").trim();
     const postImages = Array.isArray(images) ? images.filter(Boolean) : [];
 
     if (!cleanText && postImages.length === 0) {
-        throw new Error('Yuborish uchun matn yoki rasm mavjud emas.');
-    }
-    if (postImages.length > 10) {
-        throw new Error('Bir xabarda ko\'pi bilan 10 ta rasm yuborish mumkin.');
+        throw new Error("Yuborish uchun matn yoki rasm mavjud emas.");
     }
 
-    let response;
-    try {
-        response = await fetch(TELEGRAM_SEND_ENDPOINT, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: cleanText, images: postImages })
+    const caption = cleanText.length <= 1024 ? cleanText : cleanText.slice(0, 1010) + "…";
+
+    if (postImages.length === 0) {
+        await telegramApi("sendMessage", {
+            chat_id: TELEGRAM_CHANNEL_ID,
+            text: cleanText.slice(0, 4096)
         });
-    } catch (error) {
-        throw new Error('Serverga ulanib bo\'lmadi. Firebase Functions deploy qilinganini va internetni tekshiring.');
+        return true;
     }
 
-    let result;
-    try {
-        result = await response.json();
-    } catch {
-        throw new Error('Serverdan tushunarli javob kelmadi. Firebase Functions loglarini tekshiring.');
+    // Rasmlarni ImgBB havolalariga o'tkazamiz
+    const imageUrls = await Promise.all(postImages.map((img, index) => uploadImageToImgBB(img, index)));
+
+    if (imageUrls.length === 1) {
+        await telegramApi("sendPhoto", {
+            chat_id: TELEGRAM_CHANNEL_ID,
+            photo: imageUrls[0],
+            caption
+        });
+    } else {
+        // Bir nechta rasm bo'lsa Telegram Albom (MediaGroup) ko'rinishida yuboriladi
+        for (let start = 0; start < imageUrls.length; start += 10) {
+            const chunk = imageUrls.slice(start, start + 10);
+            if (chunk.length === 1) {
+                await telegramApi("sendPhoto", {
+                    chat_id: TELEGRAM_CHANNEL_ID,
+                    photo: chunk[0],
+                    caption: start === 0 ? caption : ""
+                });
+            } else {
+                const media = chunk.map((url, index) => ({
+                    type: "photo",
+                    media: url,
+                    ...(start === 0 && index === 0 ? { caption } : {})
+                }));
+                await telegramApi("sendMediaGroup", {
+                    chat_id: TELEGRAM_CHANNEL_ID,
+                    media
+                });
+            }
+        }
     }
 
-    if (!response.ok || !result.ok) {
-        throw new Error(result.error || `Yuborishda xatolik (HTTP ${response.status}).`);
+    // Agar matn uzunligi 1024 belgidan oshsa, qolgan qismi alohida matn bo'lib boradi
+    if (cleanText.length > 1024) {
+        for (let i = 1024; i < cleanText.length; i += 4000) {
+            await telegramApi("sendMessage", {
+                chat_id: TELEGRAM_CHANNEL_ID,
+                text: cleanText.slice(i, i + 4000)
+            });
+        }
     }
+
     return true;
 }
+
 function renderReviewModalImages() {
     const galleryContainer = document.getElementById('modal-images-gallery');
     if (!galleryContainer) return;
