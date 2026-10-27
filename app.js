@@ -28,7 +28,7 @@ const defaultUsers = [
     { username: 'parazitologiya', password: 'pass5', name: 'Prof. Umarov M.', role: 'user', dept: 'Parazitologiya kafedrasi', hashtag: '#VetParazitologiya', avatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }
 ];
 
-// Login har doim ishlashi uchun darhol defaultUsers bilan to'ldirib qo'yamiz
+// Zaxira sifatida darhol yuklab qo'yamiz (Login muammosini oldini oladi)
 let usersDB = [...defaultUsers];
 let pendingPosts = [];
 let publishedPosts = [];
@@ -198,13 +198,13 @@ function showApp() {
 
 function switchTab(tabName) {
     document.querySelectorAll('.tab-section').forEach(sec => sec.classList.add('hidden'));
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('bg-blue-600', 'text-white'));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active', 'bg-blue-600', 'text-white'));
     
     const targetSec = document.getElementById(`section-${tabName}`);
     if (targetSec) targetSec.classList.remove('hidden');
     
     const activeBtn = document.getElementById(`tab-btn-${tabName}`);
-    if (activeBtn) activeBtn.classList.add('bg-blue-600', 'text-white');
+    if (activeBtn) activeBtn.classList.add('active', 'bg-blue-600', 'text-white');
 
     if (tabName === 'dashboard') {
         renderDepartmentStats();
@@ -452,7 +452,6 @@ window.openReviewModal = function(id) {
     };
 }
 
-// Telegram kanaliga rasm va matnlarni to'g'ri yuborish funksiyasi
 async function sendPostToTelegramChannel(text, images) {
     if (!images || images.length === 0) {
         await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
