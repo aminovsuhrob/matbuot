@@ -137,7 +137,7 @@ function initFirebaseSync() {
     if (currentUser) {
         showApp();
     } else {
-        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('login-screen').classList.remove('hidden');
         document.getElementById('app-content').classList.add('hidden');
     }
 }
@@ -259,11 +259,6 @@ async function handleImageUpload(e) {
             alert("Faqat JPG, PNG yoki WEBP formatidagi rasmlarni tanlang.");
             return;
         }
-        if (file.size > 8 * 1024 * 1024) {
-            e.target.value = "";
-            alert(`"${file.name}" rasmi 8 MB dan katta. Kichikroq rasm tanlang.`);
-            return;
-        }
     }
 
     try {
@@ -346,7 +341,7 @@ window.openReviewModal = function(id) {
     document.getElementById('modal-dept-badge').textContent = `Yuboruvchi kafedra: ${post.dept}`;
     renderReviewModalImages();
     
-    // Rasmda ko'rsatilgan namuna shaklida avtomatik shablon tayyorlash
+    // Rasmda ko'rsatilgan namunadagi chiroyli dizayn shabloni
     const defaultHashtag = post.hashtag || "#VetFakultet";
     document.getElementById('modal-final-text').value = `${defaultHashtag}
 
@@ -354,7 +349,7 @@ window.openReviewModal = function(id) {
 
 🌱 Universitetning Veterinariya profilaktikasi va davolash fakulteti "${post.dept}" tomonidan talabalar uchun universitet tajriba xo'jaligida navbatdagi amaliy chiqish darsi tashkil etildi.
 
-✍️ Amaliy mashg'ulot davomida talabalar nazariy bilimlarini amaliyotda mustahkamlab, sohaga oid muhim amaliy ko'nikmalarga ega bo'ldilar.
+✍️ ${post.rawText}
 
 🚀 Bunday amaliy mashg'ulotlar bo'lajak veterinariya mutaxassislarining kasbiy bilim va ko'nikmalarini rivojlantirishda muhim ahamiyat kasb etadi.
 
@@ -404,22 +399,18 @@ window.openReviewModal = function(id) {
     };
 }
 
-// ImgBB orqali rasmni internetga yuklash
+// ImgBB orqali rasmni to'g'ridan-to'g'ri internetga yuklash
 async function uploadImageToImgBB(imageData, index) {
-    if (!IMGBB_API_KEY || IMGBB_API_KEY === "PASTE_IMGBB_API_KEY_HERE") {
-        throw new Error("ImgBB API kaliti kiritilmagan.");
+    if (!IMGBB_API_KEY) {
+        throw new Error("ImgBB API kaliti topilmadi.");
     }
 
     if (typeof imageData === "string" && /^https?:\/\//i.test(imageData)) {
         return imageData;
     }
 
-    if (typeof imageData !== "string" || !imageData.includes(",")) {
-        throw new Error(`${index + 1}-rasm formati noto'g'ri.`);
-    }
-
     const base64Data = imageData.split(",")[1];
-    if (!base64Data) throw new Error(`${index + 1}-rasm ma'lumoti topilmadi.`);
+    if (!base64Data) throw new Error(`${index + 1}-rasm formati noto'g'ri.`);
 
     const formData = new FormData();
     formData.append("image", base64Data);
@@ -429,54 +420,35 @@ async function uploadImageToImgBB(imageData, index) {
         body: formData
     });
 
-    let result;
-    try {
-        result = await response.json();
-    } catch {
-        throw new Error(`ImgBB ${index + 1}-rasm uchun tushunarsiz javob qaytardi.`);
-    }
-
-    if (!response.ok || !result || !result.success || !result.data || !result.data.url) {
-        throw new Error(`ImgBB ${index + 1}-rasmni yuklay olmadi: ${result?.error?.message || response.statusText || "noma'lum xato"}`);
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+        throw new Error(`ImgBB ${index + 1}-rasmni yuklay olmadi.`);
     }
     return result.data.url;
 }
 
-// Telegram API ga so'rov yuborish
+// Telegram API so'rov yuborish
 async function telegramApi(method, payload) {
-    if (!TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN === "PASTE_NEW_BOT_TOKEN_HERE") {
-        throw new Error("Telegram bot tokeni kiritilmagan.");
-    }
-
     const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/${method}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
     });
 
-    let result;
-    try {
-        result = await response.json();
-    } catch {
-        throw new Error("Telegram serveridan tushunarsiz javob keldi.");
-    }
-
+    const result = await response.json();
     if (!response.ok || !result.ok) {
-        throw new Error(result?.description || `Telegram API xatosi (${response.status}).`);
+        throw new Error(result?.description || `Telegram API xatosi.`);
     }
     return result;
 }
 
-// Telegram kanalga xabar va rasmlarni rasmda ko'rsatilgan tartibda yuborish
+// Rasmlar va matnni kanalga mukammal tartibda yuborish
 async function sendPostToTelegramChannel(text, images = []) {
     const cleanText = (text || "").trim();
     const postImages = Array.isArray(images) ? images.filter(Boolean) : [];
 
     if (!cleanText && postImages.length === 0) {
         throw new Error("Yuborish uchun matn yoki rasm mavjud emas.");
-    }
-    if (!TELEGRAM_CHANNEL_ID) {
-        throw new Error("TELEGRAM_CHANNEL_ID sozlamasi bo'sh.");
     }
 
     const caption = cleanText.length <= 1024 ? cleanText : cleanText.slice(0, 1010) + "…";
@@ -489,6 +461,7 @@ async function sendPostToTelegramChannel(text, images = []) {
         return true;
     }
 
+    // Rasmlarni ImgBB havolalariga o'tkazamiz
     const imageUrls = await Promise.all(postImages.map((img, index) => uploadImageToImgBB(img, index)));
 
     if (imageUrls.length === 1) {
@@ -498,6 +471,7 @@ async function sendPostToTelegramChannel(text, images = []) {
             caption
         });
     } else {
+        // Bir nechta rasm bo'lsa Telegram Albom (MediaGroup) ko'rinishida yuboriladi
         for (let start = 0; start < imageUrls.length; start += 10) {
             const chunk = imageUrls.slice(start, start + 10);
             if (chunk.length === 1) {
@@ -520,8 +494,9 @@ async function sendPostToTelegramChannel(text, images = []) {
         }
     }
 
+    // Agar matn uzunligi 1024 belgidan oshsa, qolgan qismi alohida matn bo'lib boradi
     if (cleanText.length > 1024) {
-        for (let i = 0; i < cleanText.length; i += 4000) {
+        for (let i = 1024; i < cleanText.length; i += 4000) {
             await telegramApi("sendMessage", {
                 chat_id: TELEGRAM_CHANNEL_ID,
                 text: cleanText.slice(i, i + 4000)
