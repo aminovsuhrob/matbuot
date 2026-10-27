@@ -28,7 +28,8 @@ const defaultUsers = [
     { username: 'parazitologiya', password: 'pass5', name: 'Prof. Umarov M.', role: 'user', dept: 'Parazitologiya kafedrasi', hashtag: '#VetParazitologiya', avatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png' }
 ];
 
-let usersDB = [];
+// Zaxira sifatida darhol yuklab qo'yamiz (Login muammosini oldini oladi)
+let usersDB = [...defaultUsers];
 let pendingPosts = [];
 let publishedPosts = [];
 let rejectedPosts = [];
@@ -43,37 +44,54 @@ let windowModalAvatar = "";
 document.addEventListener('DOMContentLoaded', () => {
     initFirebaseSync();
 
-    document.getElementById('login-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const u = document.getElementById('username').value.trim();
-        const p = document.getElementById('password').value.trim();
-        
-        const user = usersDB.find(x => x.username === u && x.password === p);
-        if (user) {
-            currentUser = user;
-            localStorage.setItem('currentUser', JSON.stringify(user));
-            document.getElementById('login-error').classList.add('hidden');
-            showApp();
-        } else {
-            document.getElementById('login-error').classList.remove('hidden');
-        }
-    });
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const u = document.getElementById('username').value.trim();
+            const p = document.getElementById('password').value.trim();
+            
+            const user = usersDB.find(x => x.username === u && x.password === p);
+            if (user) {
+                currentUser = user;
+                localStorage.setItem('currentUser', JSON.stringify(user));
+                document.getElementById('login-error').classList.add('hidden');
+                showApp();
+            } else {
+                document.getElementById('login-error').classList.remove('hidden');
+            }
+        });
+    }
 
-    document.getElementById('post-images-input').addEventListener('change', handleImageUpload);
-    document.getElementById('create-post-form').addEventListener('submit', handlePostSubmit);
-    document.getElementById('profile-form').addEventListener('submit', handleProfileUpdate);
-    document.getElementById('profile-photo-input').addEventListener('change', handleAvatarUpload);
-    document.getElementById('modal-dept-photo').addEventListener('change', handleModalAvatarUpload);
-    document.getElementById('add-user-form').addEventListener('submit', handleAddNewUser);
+    const postImagesInput = document.getElementById('post-images-input');
+    if (postImagesInput) postImagesInput.addEventListener('change', handleImageUpload);
 
-    document.getElementById('social-settings-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        socialLinks.telegram = document.getElementById('setting-telegram').value;
-        socialLinks.instagram = document.getElementById('setting-instagram').value;
-        socialLinks.facebook = document.getElementById('setting-facebook').value;
-        set(ref(db, 'socialLinks'), socialLinks);
-        alert("Ijtimoiy tarmoq havolalari yangilandi!");
-    });
+    const createPostForm = document.getElementById('create-post-form');
+    if (createPostForm) createPostForm.addEventListener('submit', handlePostSubmit);
+
+    const profileForm = document.getElementById('profile-form');
+    if (profileForm) profileForm.addEventListener('submit', handleProfileUpdate);
+
+    const profilePhotoInput = document.getElementById('profile-photo-input');
+    if (profilePhotoInput) profilePhotoInput.addEventListener('change', handleAvatarUpload);
+
+    const modalDeptPhoto = document.getElementById('modal-dept-photo');
+    if (modalDeptPhoto) modalDeptPhoto.addEventListener('change', handleModalAvatarUpload);
+
+    const addUserForm = document.getElementById('add-user-form');
+    if (addUserForm) addUserForm.addEventListener('submit', handleAddNewUser);
+
+    const socialForm = document.getElementById('social-settings-form');
+    if (socialForm) {
+        socialForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            socialLinks.telegram = document.getElementById('setting-telegram').value;
+            socialLinks.instagram = document.getElementById('setting-instagram').value;
+            socialLinks.facebook = document.getElementById('setting-facebook').value;
+            set(ref(db, 'socialLinks'), socialLinks);
+            alert("Ijtimoiy tarmoq havolalari yangilandi!");
+        });
+    }
 });
 
 function initFirebaseSync() {
@@ -83,7 +101,7 @@ function initFirebaseSync() {
             usersDB = Object.values(data);
         } else {
             set(ref(db, 'usersDB'), defaultUsers);
-            usersDB = defaultUsers;
+            usersDB = [...defaultUsers];
         }
         if (currentUser) {
             const latest = usersDB.find(u => u.username === currentUser.username);
@@ -136,12 +154,14 @@ function initFirebaseSync() {
 
 function togglePasswordVisibility(fieldId, btn) {
     const field = document.getElementById(fieldId);
-    if (field.type === 'password') {
-        field.type = 'text';
-        btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
-    } else {
-        field.type = 'password';
-        btn.innerHTML = '<i class="fa-solid fa-eye"></i>';
+    if (field && btn) {
+        if (field.type === 'password') {
+            field.type = 'text';
+            btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+        } else {
+            field.type = 'password';
+            btn.innerHTML = '<i class="fa-solid fa-eye"></i>';
+        }
     }
 }
 
@@ -178,13 +198,13 @@ function showApp() {
 
 function switchTab(tabName) {
     document.querySelectorAll('.tab-section').forEach(sec => sec.classList.add('hidden'));
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('bg-blue-600', 'text-white'));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active', 'bg-blue-600', 'text-white'));
     
     const targetSec = document.getElementById(`section-${tabName}`);
     if (targetSec) targetSec.classList.remove('hidden');
     
     const activeBtn = document.getElementById(`tab-btn-${tabName}`);
-    if (activeBtn) activeBtn.classList.add('bg-blue-600', 'text-white');
+    if (activeBtn) activeBtn.classList.add('active', 'bg-blue-600', 'text-white');
 
     if (tabName === 'dashboard') {
         renderDepartmentStats();
@@ -432,13 +452,12 @@ window.openReviewModal = function(id) {
     };
 }
 
-// Telegram kanaliga rasm va matnlarni to'g'ri yuborish funksiyasi
 async function sendPostToTelegramChannel(text, images) {
     if (!images || images.length === 0) {
-        await fetch(`https://api.telegram.org/bot${8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ}/sendMessage`, {
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: @matbuot_2026, text: text })
+            body: JSON.stringify({ chat_id: TELEGRAM_CHANNEL_ID, text: text })
         });
     } else if (images.length === 1) {
         const formData = new FormData();
@@ -448,7 +467,7 @@ async function sendPostToTelegramChannel(text, images) {
         const blob = dataURItoBlob(images[0]);
         formData.append('photo', blob, 'image.jpg');
 
-        await fetch(`https://api.telegram.org/bot${8663230324:AAHdaSKIpPkb-3-XzfVTrWyDmdvQq84TOcQ}/sendPhoto`, {
+        await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
             method: 'POST',
             body: formData
         });
@@ -722,7 +741,7 @@ window.saveDeptModalData = function() {
 }
 
 window.deleteDeptUser = function() {
-    const index = parseInt(document.getElementById('modal-dept-index'].value);
+    const index = parseInt(document.getElementById('modal-dept-index').value);
     if (confirm("Haqiqatan ham ushbu kafedrani o'chirmoqchimisiz?")) {
         usersDB.splice(index, 1);
         set(ref(db, 'usersDB'), usersDB);
